@@ -103,7 +103,17 @@ async function runDownload(baseUrl, seconds=10, streams=8, onProgress=()=>{}){
   return total;
 }
 
-function makeUploadStream(durationMs){
+function supportsStreamingUpload() {
+  try {
+    const rs = new ReadableStream({ start(c){ c.close(); } });
+    // bikin Request dengan body stream + duplex: 'half' (wajib agar browser kirim stream)
+    // ini hanya feature-detect, tidak kirim jaringan
+    new Request("about:blank", { method: "POST", body: rs, duplex: "half" });
+    return true;
+  } catch { return false; }
+}
+
+/* function makeUploadStream(durationMs){
   const end = Date.now() + durationMs;
   const chunk = new Uint8Array(1<<20);
   (self.crypto || window.crypto).getRandomValues(chunk);
@@ -115,9 +125,90 @@ function makeUploadStream(durationMs){
       controller.enqueue(chunk);
     }
   });
+} */
+
+function fillRandomBytes(buf) {
+  const chunk = 65536;
+  const view = new Uint8Array(buf.buffer || buf, buf.byteOffset || 0, buf.byteLength);
+  for (let i = 0; i < view.length; i += chunk) {
+    const len = Math.min(chunk, view.length - i);
+    (self.crypto || window.crypto).getRandomValues(view.subarray(i, i + len));
+  }
+}
+
+function makeUploadStream(durationMs, onEnqueue){
+  const end = Date.now() + durationMs;
+  const chunk = new Uint8Array(1<<20);
+//  (self.crypto || window.crypto).getRandomValues(chunk);
+  fillRandomBytes(chunk);
+  return new ReadableStream({
+    pull(controller){
+      if (Date.now() >= end || state.stopFlag){ controller.close(); return; }
+      controller.enqueue(chunk);
+      if (onEnqueue) onEnqueue(chunk.length);
+    }
+  });
+}
+
+// Fallback non-streaming: POST kecil berulang-ulang
+async function runUploadFallback(baseUrl, seconds=10, streams=4, onProgress=()=>{}){
+  const tEnd = Date.now() + seconds*1000;
+  const body = new Uint8Array(1<<20);
+//  (self.crypto || window.crypto).getRandomValues(body);
+  fillRandomBytes(body);
+  let total = 0;
+
+  const worker = async () => {
+    while (Date.now() < tEnd && !state.stopFlag){
+      await fetch(baseUrl + "/api/v1/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/octet-stream" },
+        body
+      }).catch(()=>{});
+      total += body.byteLength;
+      onProgress(total);
+    }
+    return total;
+  };
+
+  const results = await Promise.all(Array.from({length: streams}, worker));
+  return results.reduce((a,b)=>a+b,0);
 }
 
 async function runUpload(baseUrl, seconds=10, streams=8, onProgress=()=>{}){
+  state.upBytes = 0;
+  const durationMs = seconds*1000;
+
+  if (supportsStreamingUpload()){
+    const worker = async () => {
+      try{
+        const stream = makeUploadStream(durationMs, n => { state.upBytes += n; onProgress(state.upBytes); });
+        const r = await fetch(baseUrl + `/api/v1/upload?time=${seconds}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/octet-stream" },
+          body: stream,
+          duplex: "half"            // <<<<<< kunci utamanya
+        });
+        const j = await r.json().catch(()=>({receivedBytes:0}));
+        return j.receivedBytes || 0;
+      }catch{ return 0; }
+    };
+
+    const results = await Promise.all(Array.from({length: streams}, worker));
+    onProgress(state.upBytes);
+    const sum = results.reduce((a,b)=>a+b,0);
+    if (sum > 0) return sum; // sukses streaming → selesai
+    // kalau semua gagal, lanjut fallback
+  }
+
+  // Fallback (tanpa streaming)
+  const fb = await runUploadFallback(baseUrl, seconds, Math.max(1, Math.min(8, streams)), n=>{
+    state.upBytes = n; onProgress(n);
+  });
+  return fb;
+}
+
+/* async function runUpload(baseUrl, seconds=10, streams=8, onProgress=()=>{}){
   state.upBytes = 0;
   const durationMs = seconds*1000;
 
@@ -127,19 +218,20 @@ async function runUpload(baseUrl, seconds=10, streams=8, onProgress=()=>{}){
         method: "POST",
         body: makeUploadStream(durationMs),
         headers: { "Content-Type": "application/octet-stream" },
+        duplex: "half"
       });
       const j = await r.json();
       state.upBytes += j.receivedBytes || 0;
       return j.receivedBytes || 0;
     }catch(e){ return 0; }
-  };
+  }; 
 
   const tick = setInterval(()=>{ onProgress(state.upBytes); }, 200);
   const results = await Promise.all(Array.from({length: streams}, worker));
   clearInterval(tick);
   onProgress(state.upBytes);
   return results.reduce((a,b)=>a+b,0);
-}
+} */
 
 function setRunning(running){
   $("btnStart").disabled = running;

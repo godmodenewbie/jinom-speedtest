@@ -5,10 +5,8 @@ services:
       context: ./directory-service
     image: jinom/directory-service:local
     container_name: directory
-    environment:
-      - SERVERS_JSON=[{"id":"node-dps","region":"id-dps","city":"Denpasar","url":"http://localhost:8080","status":"up","load":0.02},{"id":"node-jkt","region":"id-jkt","city":"Jakarta","url":"http://localhost:8081","status":"up","load":0.03}]
     ports:
-      - "8088:8088"
+      - "9088:8088"
 
   dps:
     build:
@@ -20,7 +18,7 @@ services:
       - REGION=id-dps
       - ADDR=:8080
     ports:
-      - "8080:8080"
+      - "9080:8080"
 
   jkt:
     build:
@@ -32,7 +30,7 @@ services:
       - REGION=id-jkt
       - ADDR=:8081
     ports:
-      - "8081:8081"
+      - "9081:8081"
 
   client:
     build:
@@ -40,4 +38,4 @@ services:
     image: jinom/speedtest-client:local
     container_name: speed-client
     ports:
-      - "8082:80"
+      - "9082:80"

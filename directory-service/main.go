@@ -17,7 +17,7 @@ type ServerInfo struct {
   Load   float64 `json:"load"`
 }
 
-func withCORS(h http.HandlerFunc) http.HandlerFunc {
+/*func withCORS(h http.HandlerFunc) http.HandlerFunc {
   return func(w http.ResponseWriter, r *http.Request) {
     w.Header().Set("Access-Control-Allow-Origin", "*")
     w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
@@ -25,11 +25,37 @@ func withCORS(h http.HandlerFunc) http.HandlerFunc {
     if r.Method == "OPTIONS" { w.WriteHeader(204); return }
     h(w, r)
   }
+}*/
+
+func withCORS(h http.HandlerFunc) http.HandlerFunc {
+  return func(w http.ResponseWriter, r *http.Request) {
+    origin := r.Header.Get("Origin")
+    if origin == "" {
+      w.Header().Set("Access-Control-Allow-Origin", "*")
+    } else {
+      w.Header().Set("Access-Control-Allow-Origin", origin)
+      w.Header().Set("Vary", "Origin")
+    }
+    w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+    w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+
+    // penting untuk akses ke IP private
+    if r.Header.Get("Access-Control-Request-Private-Network") == "true" {
+      w.Header().Set("Access-Control-Allow-Private-Network", "true")
+    }
+
+    if r.Method == http.MethodOptions {
+      w.WriteHeader(204)
+      return
+    }
+    h(w, r)
+  }
 }
 
+
 func main() {
-  def := `[{"id":"node-dps","region":"id-dps","city":"Denpasar","url":"http://localhost:8080","status":"up","load":0.02},
-           {"id":"node-jkt","region":"id-jkt","city":"Jakarta","url":"http://localhost:8081","status":"up","load":0.03}]`
+  def := `[{"id":"node-dps","region":"id-dps","city":"Denpasar","url":"http://192.168.30.3:9080","status":"up","load":0.02},
+           {"id":"node-jkt","region":"id-jkt","city":"Jakarta","url":"http://192.168.30.3:9081","status":"up","load":0.03}]`
   raw := os.Getenv("SERVERS_JSON")
   if strings.TrimSpace(raw) == "" { raw = def }
 

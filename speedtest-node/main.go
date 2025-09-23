@@ -24,7 +24,7 @@ func getenvInt(k string, def int) int {
   return def
 }
 
-func withCORS(h http.HandlerFunc) http.HandlerFunc {
+/*func withCORS(h http.HandlerFunc) http.HandlerFunc {
   return func(w http.ResponseWriter, r *http.Request) {
     w.Header().Set("Access-Control-Allow-Origin", "*") // ganti ke domain tertentu di prod
     w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
@@ -32,7 +32,33 @@ func withCORS(h http.HandlerFunc) http.HandlerFunc {
     if r.Method == "OPTIONS" { w.WriteHeader(204); return }
     h(w, r)
   }
+}*/
+
+func withCORS(h http.HandlerFunc) http.HandlerFunc {
+  return func(w http.ResponseWriter, r *http.Request) {
+    origin := r.Header.Get("Origin")
+    if origin == "" {
+      w.Header().Set("Access-Control-Allow-Origin", "*")
+    } else {
+      w.Header().Set("Access-Control-Allow-Origin", origin)
+      w.Header().Set("Vary", "Origin")
+    }
+    w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+    w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+
+    // >>> penting untuk Private Network Access (akses 192.168.x.x dari browser)
+    if r.Header.Get("Access-Control-Request-Private-Network") == "true" {
+      w.Header().Set("Access-Control-Allow-Private-Network", "true")
+    }
+
+    if r.Method == http.MethodOptions {
+      w.WriteHeader(204)
+      return
+    }
+    h(w, r)
+  }
 }
+
 
 func main() {
   if _, err := rand.Read(chunk); err != nil { panic(err) }
@@ -82,7 +108,7 @@ func main() {
     }
   }))
 
-  mux.HandleFunc("/api/v1/upload", withCORS(func(w http.ResponseWriter, r *http.Request) {
+  /*mux.HandleFunc("/api/v1/upload", withCORS(func(w http.ResponseWriter, r *http.Request) {
     w.Header().Set("Cache-Control", "no-store")
     q := r.URL.Query()
     timeSec, _ := strconv.ParseInt(q.Get("time"), 10, 64)
@@ -104,7 +130,44 @@ func main() {
       "receivedBytes": received,
       "durationMs":    time.Since(start).Milliseconds(),
     })
-  }))
+  }))*/
+
+  // PATCH: handler upload yang stabil
+mux.HandleFunc("/api/v1/upload", withCORS(func(w http.ResponseWriter, r *http.Request) {
+  w.Header().Set("Cache-Control", "no-store")
+
+  // time=... opsional, dipakai sebagai "safety guard"
+  q := r.URL.Query()
+  timeSec, _ := strconv.Atoi(q.Get("time"))
+
+  start := time.Now()
+
+  // Guard: kalau klien tak menutup stream, paksa close sedikit setelah durasi
+  var guard *time.Timer
+  if timeSec > 0 {
+    guard = time.AfterFunc(time.Duration(timeSec+1)*time.Second, func() {
+      _ = r.Body.Close() // memicu EOF di loop baca
+    })
+    defer guard.Stop()
+  }
+
+  var received int64
+  buf := make([]byte, 1<<20) // 1 MiB
+  for {
+    n, err := r.Body.Read(buf)
+    if n > 0 { received += int64(n) }
+    if err == io.EOF { break }
+    if err != nil { break }
+  }
+  _ = r.Body.Close() // rapikan koneksi
+
+  w.Header().Set("Content-Type", "application/json")
+  _ = json.NewEncoder(w).Encode(map[string]any{
+    "receivedBytes": received,
+    "durationMs":    time.Since(start).Milliseconds(),
+  })
+}))
+
 
   srv := &http.Server{
     Addr:         addr,
