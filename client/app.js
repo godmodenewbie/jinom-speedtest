@@ -108,7 +108,8 @@ function supportsStreamingUpload() {
     const rs = new ReadableStream({ start(c){ c.close(); } });
     // bikin Request dengan body stream + duplex: 'half' (wajib agar browser kirim stream)
     // ini hanya feature-detect, tidak kirim jaringan
-    new Request("about:blank", { method: "POST", body: rs, duplex: "half" });
+    //new Request("about:blank", { method: "POST", body: rs, duplex: "half" });
+    new Request("about:blank", { method: "POST", body: rs });
     return true;
   } catch { return false; }
 }
@@ -187,7 +188,7 @@ async function runUpload(baseUrl, seconds=10, streams=8, onProgress=()=>{}){
           method: "POST",
           headers: { "Content-Type": "application/octet-stream" },
           body: stream,
-          duplex: "half"            // <<<<<< kunci utamanya
+          //duplex: "half"            // <<<<<< kunci utamanya
         });
         const j = await r.json().catch(()=>({receivedBytes:0}));
         return j.receivedBytes || 0;
