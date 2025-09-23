@@ -1,0 +1,14 @@
+# Go build artifacts
+**/*.exe
+**/*.dll
+**/*.so
+**/*.dylib
+**/*.test
+**/*.out
+
+# Binaries
+/speedtest-node/speedtest
+/directory-service/directory
+
+# Logs
+*.log

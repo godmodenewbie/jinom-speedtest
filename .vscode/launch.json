@@ -1,0 +1,18 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug Speedtest Node",
+      "type": "go",
+      "request": "launch",
+      "program": "${workspaceFolder}/speedtest-node/main.go",
+      "env": { "NODE_ID": "node-dev", "REGION": "id-dev", "ADDR": ":8080" }
+    },
+    {
+      "name": "Debug Directory Service",
+      "type": "go",
+      "request": "launch",
+      "program": "${workspaceFolder}/directory-service/main.go"
+    }
+  ]
+}
