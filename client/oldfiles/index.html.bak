@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Jinom Speedtest (Simple Client)</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="container">
+    <h1>Jinom Speedtest</h1>
+
+    <section class="card">
+      <h2>Server Selection</h2>
+      <div class="row">
+        <label>Directory URL</label>
+        <input id="dirUrl" value="http://192.168.30.3:9088" />
+        <button id="btnLoad">Load Servers</button>
+      </div>
+      <div class="row">
+        <label>Servers</label>
+        <select id="serverSelect"></select>
+        <button id="btnProbe">Find Best</button>
+      </div>
+      <div class="row"><small id="serverInfo"></small></div>
+    </section>
+
+    <section class="card">
+      <h2>Settings</h2>
+      <div class="grid">
+        <div>
+          <label>Duration (seconds)</label>
+          <input id="duration" type="number" value="10" min="3" max="30"/>
+        </div>
+        <div>
+          <label>Streams</label>
+          <input id="streams" type="number" value="8" min="1" max="32"/>
+        </div>
+      </div>
+      <div class="row">
+        <button id="btnStart">Start Test</button>
+        <button id="btnStop" class="ghost">Stop</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Results</h2>
+      <div class="metric"><span>Latency (avg)</span><strong id="latency">-</strong></div>
+      <div class="metric"><span>Jitter</span><strong id="jitter">-</strong></div>
+      <div class="metric"><span>Download</span><strong id="downMbps">-</strong></div>
+      <div class="progress"><div id="downBar"></div></div>
+      <div class="metric"><span>Upload</span><strong id="upMbps">-</strong></div>
+      <div class="progress"><div id="upBar"></div></div>
+      <div class="row">
+        <small id="log"></small>
+      </div>
+    </section>
+
+    <footer>Speedtest Simple client by Jinom • For demo only</footer>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>

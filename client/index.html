@@ -3,61 +3,82 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Jinom Speedtest (Simple Client)</title>
+  <title>Jinom Speedtest (Gauge)</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <main class="container">
     <h1>Jinom Speedtest</h1>
 
+    <!-- CARD: Gauge + KPIs -->
     <section class="card">
-      <h2>Server Selection</h2>
-      <div class="row">
-        <label>Directory URL</label>
-        <input id="dirUrl" value="http://192.168.30.3:9088" />
-        <button id="btnLoad">Load Servers</button>
-      </div>
-      <div class="row">
-        <label>Servers</label>
-        <select id="serverSelect"></select>
-        <button id="btnProbe">Find Best</button>
-      </div>
-      <div class="row"><small id="serverInfo"></small></div>
-    </section>
+      <div class="gauge-wrap">
+        <div class="status-pill" id="statusPill">Ready</div>
 
-    <section class="card">
-      <h2>Settings</h2>
-      <div class="grid">
-        <div>
-          <label>Duration (seconds)</label>
-          <input id="duration" type="number" value="10" min="3" max="30"/>
+        <!-- Speedometer -->
+        <div class="gauge">
+          <svg id="gaugeSvg" viewBox="-120 -120 240 240" aria-hidden="true">
+            <defs>
+              <linearGradient id="grad" x1="0" x2="1">
+                <stop offset="0%" stop-color="#5b8cff"/>
+                <stop offset="100%" stop-color="#7a9dff"/>
+              </linearGradient>
+            </defs>
+            <path id="arcBg" d="" stroke="#1f2540" stroke-width="16" fill="none" stroke-linecap="round"/>
+            <g id="ticks"></g>
+            <path id="arcVal" d="" stroke="url(#grad)" stroke-width="16" fill="none" stroke-linecap="round"/>
+            <g id="needle" transform="rotate(-130)">
+              <circle cx="0" cy="0" r="4" fill="#cfd6ff"/>
+              <rect x="-2" y="-80" width="4" height="86" rx="2" fill="#cfd6ff"/>
+            </g>
+          </svg>
+          <div class="speed-value">
+            <div class="num" id="speedNum">0.00</div>
+            <div class="unit">Mbps</div>
+          </div>
+          <div class="scale-label" id="scaleLabel">Scale: 0–1000 Mbps (Auto)</div>
         </div>
-        <div>
-          <label>Streams</label>
-          <input id="streams" type="number" value="8" min="1" max="32"/>
+
+        <!-- Server/IP/ISP badges -->
+        <div class="badges">
+          <div class="pill" title="Server digunakan">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <rect x="3" y="4" width="18" height="6" rx="2" stroke="#9aa3c7"/>
+              <rect x="3" y="14" width="18" height="6" rx="2" stroke="#9aa3c7"/>
+              <circle cx="8" cy="7" r="1" fill="#9aa3c7"/>
+              <circle cx="8" cy="17" r="1" fill="#9aa3c7"/>
+            </svg>
+            <span id="serverText">Server: -</span>
+          </div>
+          <div class="pill" title="Jaringan kamu">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M12 3a9 9 0 1 0 9 9" stroke="#9aa3c7"/>
+              <circle cx="12" cy="12" r="3" stroke="#9aa3c7"/>
+            </svg>
+            <span id="clientIpText">IP: -</span>
+            <span id="clientIspText">— ISP: -</span>
+          </div>
         </div>
       </div>
-      <div class="row">
-        <button id="btnStart">Start Test</button>
-        <button id="btnStop" class="ghost">Stop</button>
+
+      <!-- KPIs -->
+      <div class="kpis">
+        <div class="kpi"><div class="label">Ping</div><div class="val"><span id="latency">-</span><span class="unit">ms</span></div></div>
+        <div class="kpi"><div class="label">Jitter</div><div class="val"><span id="jitter">-</span><span class="unit">ms</span></div></div>
+        <div class="kpi"><div class="label">Download</div><div class="val"><span id="downMbps">-</span><span class="unit">Mbps</span></div></div>
+        <div class="kpi"><div class="label">Upload</div><div class="val"><span id="upMbps">-</span><span class="unit">Mbps</span></div></div>
+      </div>
+
+      <!-- Controls -->
+      <div class="row center">
+        <button id="btnStart" class="btn">Start</button>
+        <button id="btnStop" class="btn ghost" disabled>Stop</button>
       </div>
     </section>
 
-    <section class="card">
-      <h2>Results</h2>
-      <div class="metric"><span>Latency (avg)</span><strong id="latency">-</strong></div>
-      <div class="metric"><span>Jitter</span><strong id="jitter">-</strong></div>
-      <div class="metric"><span>Download</span><strong id="downMbps">-</strong></div>
-      <div class="progress"><div id="downBar"></div></div>
-      <div class="metric"><span>Upload</span><strong id="upMbps">-</strong></div>
-      <div class="progress"><div id="upBar"></div></div>
-      <div class="row">
-        <small id="log"></small>
-      </div>
-    </section>
-
-    <footer>Simple client inspired by LibreSpeed • For demo only</footer>
+    <footer>Jinom Speedtest • Demo UI</footer>
   </main>
+
   <script src="app.js"></script>
 </body>
 </html>

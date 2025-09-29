@@ -54,8 +54,7 @@ func withCORS(h http.HandlerFunc) http.HandlerFunc {
 
 
 func main() {
-  def := `[{"id":"node-dps","region":"id-dps","city":"Denpasar","url":"http://192.168.30.3:9080","status":"up","load":0.02},
-           {"id":"node-jkt","region":"id-jkt","city":"Jakarta","url":"http://192.168.30.3:9081","status":"up","load":0.03}]`
+  def := `[{"id":"node-lembeng","region":"id-lembeng","city":"Gianyar","url":"https://jnm-dps1-speedtest.noobhomelab.icu","status":"up","load":0.03}]`
   raw := os.Getenv("SERVERS_JSON")
   if strings.TrimSpace(raw) == "" { raw = def }
 
