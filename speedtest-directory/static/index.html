@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Directory Admin</title>
+<style>
+body{font:14px system-ui,Segoe UI,Roboto,Inter,Arial;margin:0;background:#0f1320;color:#e8ebff}
+main{max-width:960px;margin:24px auto;padding:0 16px}
+h1{font-size:18px}
+.card{background:#171b2b;border:1px solid #222842;border-radius:12px;padding:16px;margin-top:12px}
+.row{display:flex;flex-wrap:wrap;gap:8px}
+input,button,select{padding:8px 10px;border-radius:8px;border:1px solid #2a2f47;background:#0e1220;color:#e8ebff}
+button.primary{background:#5b8cff;border-color:#5b8cff}
+table{width:100%;border-collapse:collapse;margin-top:12px}
+th,td{border-bottom:1px solid #222842;padding:8px;text-align:left;font-size:13px}
+.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px}
+.badge.up{background:#103d2c;color:#38d684}
+.badge.down{background:#3d1010;color:#ff6b6b}
+.small{color:#9aa3c7;font-size:12px}
+</style>
+</head>
+<body>
+<main>
+  <h1>Directory Admin</h1>
+
+  <div class="card">
+    <div class="row">
+      <input id="token" placeholder="Admin Bearer Token ( sekali tempel )" style="flex:1"/>
+      <button class="primary" id="btnReload">Reload</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Tambah / Update Server</h3>
+    <div class="row">
+      <input id="id" placeholder="id (unik)"/>
+      <input id="region" placeholder="region (ID-JK)"/>
+      <input id="city" placeholder="city (Jakarta)"/>
+      <input id="url" placeholder="https://jkt1.speedtest.example.com"/>
+      <select id="status"><option>UNKNOWN</option><option>UP</option><option>DOWN</option></select>
+      <input id="load" placeholder="load (0-100)" type="number" step="0.1" style="width:120px"/>
+      <button class="primary" id="btnSave">Save</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Servers</h3>
+    <table id="tbl"><thead>
+      <tr><th>ID</th><th>Region</th><th>City</th><th>URL</th><th>Status</th><th>Load</th><th>Last Ping</th><th>Latency</th><th></th></tr>
+    </thead><tbody></tbody></table>
+    <div class="small" id="health"></div>
+  </div>
+</main>
+
+<script>
+const $=s=>document.querySelector(s);
+function token(){ return $("#token").value.trim(); }
+async function api(path, opt={}){
+  opt.headers = Object.assign({'Content-Type':'application/json'}, opt.headers||{});
+  if (!opt.method || opt.method==='GET'){
+    return fetch(path, opt).then(r=>r.json());
+  }
+  opt.headers['Authorization'] = 'Bearer ' + token();
+  return fetch(path, opt).then(r=>r.json());
+}
+function fmt(ts){ if(!ts) return '-'; const d=new Date(ts); return d.toLocaleString(); }
+function badge(status){ const cls = status==='UP'?'up':'down'; return `<span class="badge ${cls}">${status}</span>`; }
+
+async function reload(){
+  const all = await api('/api/v1/servers/all');
+  const tb = $("#tbl tbody");
+  tb.innerHTML = all.map(s=>`
+    <tr>
+      <td>${s.id}</td>
+      <td>${s.region}</td>
+      <td>${s.city}</td>
+      <td><a href="${s.url}" target="_blank">${s.url}</a></td>
+      <td>${badge(s.status||'UNKNOWN')}</td>
+      <td>${(s.load||0).toFixed(1)}</td>
+      <td>${fmt(s.lastPingAt)}</td>
+      <td>${s.lastLatencyMs? s.lastLatencyMs.toFixed(1)+' ms':'-'}</td>
+      <td><button data-id="${s.id}" class="del">Del</button></td>
+    </tr>`).join('');
+  const h = await api('/api/v1/health');
+  $("#health").textContent = `UP: ${h.up} • DOWN: ${h.down} • Last Ping: ${fmt(h.lastPingAt)}`;
+  tb.querySelectorAll('button.del').forEach(b=>{
+    b.onclick = async () => {
+      const id = b.getAttribute('data-id');
+      await api('/api/v1/servers/'+encodeURIComponent(id), { method:'DELETE', headers:{'Authorization':'Bearer '+token()} });
+      reload();
+    };
+  });
+}
+
+$("#btnReload").onclick = reload;
+$("#btnSave").onclick = async ()=>{
+  const payload = {
+    id: $("#id").value.trim(),
+    region: $("#region").value.trim(),
+    city: $("#city").value.trim(),
+    url: $("#url").value.trim().replace(/\/+$/,''),
+    status: $("#status").value,
+    load: parseFloat($("#load").value||"0"),
+  };
+  if(!payload.id || !payload.region || !payload.city || !payload.url){
+    alert('id, region, city, url wajib'); return;
+  }
+  // try create, kalau gagal (duplicate) → update
+  let r = await fetch('/api/v1/servers', {method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+token()}, body:JSON.stringify(payload)});
+  if(!r.ok){
+    await fetch('/api/v1/servers/'+encodeURIComponent(payload.id), {method:'PUT', headers:{'Content-Type':'application/json','Authorization':'Bearer '+token()}, body:JSON.stringify(payload)});
+  }
+  reload();
+};
+
+reload();
+</script>
+</body>
+</html>

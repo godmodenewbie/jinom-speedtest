@@ -1,0 +1,19 @@
+services:
+  directory:
+    build: .
+    container_name: speedtest-directory
+    ports:
+      - "8088:8088"
+    environment:
+      - BIND_ADDR=:8088
+      - ADMIN_TOKEN=supersecret-token
+      - PUBLIC_CORS_ORIGIN=*
+      - ADMIN_CORS_ORIGIN=*
+      - SQLITE_DSN=file:/app/data/dir.db?_pragma=busy_timeout=5000&_pragma=journal_mode(WAL)
+      - PING_INTERVAL_SEC=60
+    volumes:
+      - dir_data:/app/data
+    restart: unless-stopped
+
+volumes:
+  dir_data:

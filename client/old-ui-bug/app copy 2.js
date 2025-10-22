@@ -183,22 +183,186 @@ async function runDownload(baseUrl, seconds=DEFAULT_SECONDS, streams=DEFAULT_STR
 }
 
 // ===== UPLOAD =====
-function supportsStreamingUpload(){ try{ const rs=new ReadableStream({start(c){c.close()}}); new Request("about:blank",{method:"POST",body:rs,duplex:"half"}); return true; }catch{ return false } }
+/* function supportsStreamingUpload(){ try{ const rs=new ReadableStream({start(c){c.close()}}); new Request("about:blank",{method:"POST",body:rs,duplex:"half"}); return true; }catch{ return false } }
 function makeUploadStream(durationMs, onEnqueue){ const end=Date.now()+durationMs; return new ReadableStream({ pull(c){ if(Date.now()>=end||state.stopFlag){ c.close(); return } c.enqueue(UP_CHUNK); if(onEnqueue) onEnqueue(UP_CHUNK.length); } }); }
 async function runUploadStreaming(baseUrl, seconds=DEFAULT_SECONDS, streams=DEFAULT_STREAMS, onProgress=()=>{}){
-  state.upBytes=0; const durationMs=seconds*1000;
-  const worker=async()=>{ try{ let local=0; const stream=makeUploadStream(durationMs, n=>{ local+=n; state.upBytes+=n; onProgress(state.upBytes); }); const r=await fetch(baseUrl+`/api/v1/upload?time=${seconds}`,{method:"POST",headers:{"Content-Type":"application/octet-stream"},body:stream}); const j=await r.json().catch(()=>({receivedBytes:0})); if(typeof j.receivedBytes==="number"){ const diff=j.receivedBytes-local; if(diff>0){ state.upBytes+=diff; onProgress(state.upBytes);} return j.receivedBytes; } return local; }catch(e){ log("stream worker failed:",e); return 0; } };
-  const results=await Promise.all(Array.from({length:streams}, worker)); return results.reduce((a,b)=>a+b,0);
+  state.upBytes = 0;
+  const durationMs = seconds*1000;
+  const t0 = performance.now();
+
+  const worker = async () => {
+    try{
+      let localCount = 0, serverMs = 0, serverBytes = 0;
+      const stream = makeUploadStream(durationMs, n => {
+        localCount += n; state.upBytes += n; onProgress(state.upBytes);
+      });
+      const r = await fetch(baseUrl + `/api/v1/upload?time=${seconds}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/octet-stream" },
+        body: stream,
+        duplex: "half"
+      });
+      const j = await r.json().catch(()=>({receivedBytes:0, durationMs:0}));
+      if (typeof j.receivedBytes === "number") serverBytes = j.receivedBytes;
+      if (typeof j.durationMs === "number")   serverMs = j.durationMs;
+      // kembalikan apa yang server catat; kalau kosong, pakai hitungan lokal
+      return { bytes: serverBytes || localCount, serverMs };
+    }catch(e){
+      console.warn("stream worker failed:", e);
+      return { bytes: 0, serverMs: 0 };
+    }
+  };
+
+  const results = await Promise.all(Array.from({length: streams}, worker));
+  const totalBytes = results.reduce((a,x)=>a + x.bytes, 0);
+  const serverMsMax = Math.max(0, ...results.map(x=>x.serverMs||0)); // biasanya sama utk semua stream
+  const elapsedLocal = (performance.now() - t0)/1000;
+  const secondsUsed = serverMsMax ? (serverMsMax/1000) : elapsedLocal;
+
+  return { bytes: totalBytes, seconds: Math.max(secondsUsed, 0.001) };
 }
+
 async function runUploadFallback(baseUrl, seconds=DEFAULT_SECONDS, streams=Math.min(DEFAULT_STREAMS,8), onProgress=()=>{}){
-  const tEnd=Date.now()+seconds*1000; let total=0;
-  const worker=async()=>{ let sent=0; while(Date.now()<tEnd && !state.stopFlag){ await fetch(baseUrl+"/api/v1/upload",{method:"POST",headers:{"Content-Type":"application/octet-stream"},body:UP_CHUNK}).catch(()=>{}); sent+=UP_CHUNK.length; total+=UP_CHUNK.length; onProgress(total); } return sent; };
-  const tick=setInterval(()=>onProgress(total),120); const results=await Promise.all(Array.from({length:streams}, worker)); clearInterval(tick); onProgress(total); return results.reduce((a,b)=>a+b,0);
+  const tEnd = Date.now() + seconds*1000;
+  const t0 = performance.now();
+  let total = 0;
+
+  const worker = async () => {
+    let sent = 0;
+    while(Date.now() < tEnd && !state.stopFlag){
+      await fetch(baseUrl + "/api/v1/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/octet-stream" },
+        body: UP_CHUNK
+      }).catch(()=>{});
+      sent += UP_CHUNK.length;
+      total += UP_CHUNK.length;
+      onProgress(total);
+    }
+    return sent;
+  };
+
+  await Promise.all(Array.from({length: streams}, worker));
+  const elapsed = (performance.now() - t0)/1000;
+  return { bytes: total, seconds: Math.max(elapsed, 0.001) };
 }
+
 async function runUpload(baseUrl, seconds=DEFAULT_SECONDS, streams=DEFAULT_STREAMS, onProgress=()=>{}){
-  if (supportsStreamingUpload()){ const sum=await runUploadStreaming(baseUrl,seconds,streams,onProgress); if(sum>0) return sum; log("Streaming returned 0 → fallback"); }
+  if (supportsStreamingUpload()){
+    const res = await runUploadStreaming(baseUrl, seconds, streams, onProgress);
+    if (res.bytes > 0) return res;
+    console.warn("Streaming returned 0 → fallback");
+  }
   return await runUploadFallback(baseUrl, seconds, Math.max(1, Math.min(8, streams)), onProgress);
 }
+*/
+
+function supportsStreamingUpload() {
+  try {
+    const rs = new ReadableStream({ start(c){ c.close(); } });
+    // bikin Request dengan body stream + duplex: 'half' (wajib agar browser kirim stream)
+    // ini hanya feature-detect, tidak kirim jaringan
+    //new Request("about:blank", { method: "POST", body: rs, duplex: "half" });
+    new Request("about:blank", { method: "POST", body: rs });
+    return true;
+  } catch { return false; }
+}
+
+/* function makeUploadStream(durationMs){
+  const end = Date.now() + durationMs;
+  const chunk = new Uint8Array(1<<20);
+  (self.crypto || window.crypto).getRandomValues(chunk);
+  return new ReadableStream({
+    pull(controller){
+      if (Date.now() >= end || state.stopFlag){
+        controller.close(); return;
+      }
+      controller.enqueue(chunk);
+    }
+  });
+} */
+
+function fillRandomBytes(buf) {
+  const chunk = 65536;
+  const view = new Uint8Array(buf.buffer || buf, buf.byteOffset || 0, buf.byteLength);
+  for (let i = 0; i < view.length; i += chunk) {
+    const len = Math.min(chunk, view.length - i);
+    (self.crypto || window.crypto).getRandomValues(view.subarray(i, i + len));
+  }
+}
+
+function makeUploadStream(durationMs, onEnqueue){
+  const end = Date.now() + durationMs;
+  const chunk = new Uint8Array(1<<20);
+//  (self.crypto || window.crypto).getRandomValues(chunk);
+  fillRandomBytes(chunk);
+  return new ReadableStream({
+    pull(controller){
+      if (Date.now() >= end || state.stopFlag){ controller.close(); return; }
+      controller.enqueue(chunk);
+      if (onEnqueue) onEnqueue(chunk.length);
+    }
+  });
+}
+
+// Fallback non-streaming: POST kecil berulang-ulang
+async function runUploadFallback(baseUrl, seconds=10, streams=4, onProgress=()=>{}){
+  const tEnd = Date.now() + seconds*1000;
+  const body = new Uint8Array(1<<20);
+//  (self.crypto || window.crypto).getRandomValues(body);
+  fillRandomBytes(body);
+  let total = 0;
+
+  const worker = async () => {
+    while (Date.now() < tEnd && !state.stopFlag){
+      await fetch(baseUrl + "/api/v1/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/octet-stream" },
+        body
+      }).catch(()=>{});
+      total += body.byteLength;
+      onProgress(total);
+    }
+    return total;
+  };
+
+  const results = await Promise.all(Array.from({length: streams}, worker));
+  return results.reduce((a,b)=>a+b,0);
+}
+
+async function runUpload(baseUrl, seconds=10, streams=8, onProgress=()=>{}){
+  state.upBytes = 0;
+  const durationMs = seconds*1000;
+
+  if (supportsStreamingUpload()){
+    const worker = async () => {
+      try{
+        const stream = makeUploadStream(durationMs, n => { state.upBytes += n; onProgress(state.upBytes); });
+        const r = await fetch(baseUrl + `/api/v1/upload?time=${seconds}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/octet-stream" },
+          body: stream,
+          //duplex: "half"            // <<<<<< kunci utamanya
+        });
+        const j = await r.json().catch(()=>({receivedBytes:0}));
+        return j.receivedBytes || 0;
+      }catch{ return 0; }
+    };
+
+    const results = await Promise.all(Array.from({length: streams}, worker));
+    onProgress(state.upBytes);
+    const sum = results.reduce((a,b)=>a+b,0);
+    if (sum > 0) return sum; // sukses streaming â†’ selesai
+    // kalau semua gagal, lanjut fallback
+  }
+
+  // Fallback (tanpa streaming)
+  const fb = await runUploadFallback(baseUrl, seconds, Math.max(1, Math.min(8, streams)), n=>{
+    state.upBytes = n; onProgress(n);
+  });
+  return fb;
+}
+
 
 // ===== CONTROLS =====
 function setRunning(r){ if($("btnStart")) $("btnStart").disabled=r; if($("btnStop")) $("btnStop").disabled=!r; }
@@ -237,14 +401,20 @@ async function startTest(){
 
   // upload
   const t0u = performance.now();
-  await runUpload(base, seconds, streams, (bytes)=>{
-    const elapsed=(performance.now()-t0u)/1000;
-    const m=mbps(bytes, Math.max(elapsed, .001));
-    if($("upMbps")) $("upMbps").textContent=`${fmt(m,2)} Mbps`;
-    if($("upBar"))  $("upBar").style.width=Math.min(100,(elapsed/seconds)*100)+"%";
-    updateGauge(m);
-  });
+  const upRes = await runUpload(base, seconds, streams, (bytes)=>{
+    const elapsed = (performance.now() - t0u)/1000;
+    const cur = mbps(bytes, Math.max(elapsed, .001));   // live (sementara)
+    if ($("upMbps")) $("upMbps").textContent = `${fmt(cur,2)} Mbps`;
+    if ($("upBar"))  $("upBar").style.width = Math.min(100, (elapsed/seconds)*100) + "%";
+  updateGauge(cur);
+});
 
+// --- angka final yang akurat (pakai bytes/durasi dari server bila ada) ---
+const upFinal = mbps(upRes.bytes, upRes.seconds);
+if ($("upMbps")) $("upMbps").textContent = `${fmt(upFinal,2)} Mbps`;
+
+
+  
   setRunning(false); updateGauge(0); log("All tests done");
 }
 function stopTest(){ state.stopFlag=true; setRunning(false); log("Stopped"); }

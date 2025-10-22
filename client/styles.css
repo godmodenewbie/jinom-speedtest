@@ -11,7 +11,13 @@ body{
   color:var(--text)
 }
 .container{max-width:980px;margin:0 auto;padding:20px}
-h1{margin:8px 0 16px}
+
+/* header */
+.topbar{display:flex;justify-content:space-between;align-items:center;margin:6px 0 14px}
+.brand{display:flex;align-items:center;gap:8px;font-weight:800;font-size:18px}
+.brand .dot{width:10px;height:10px;border-radius:999px;background:linear-gradient(180deg,var(--accent),var(--accent2));box-shadow:0 0 10px #5b8cff66}
+
+/* card */
 .card{
   background:rgba(23,27,43,.9);
   border:1px solid #222842;
@@ -23,32 +29,36 @@ h1{margin:8px 0 16px}
 .row.center{justify-content:center}
 .btn{
   background:linear-gradient(180deg, var(--accent), var(--accent2));
-  border:0; color:#fff; font-weight:600; padding:10px 16px; border-radius:10px; cursor:pointer;
+  border:0; color:#fff; font-weight:700; padding:12px 18px; border-radius:12px; cursor:pointer;
+  box-shadow:0 6px 20px #5b8cff33;
 }
-.btn.ghost{background:#0e1220;color:#cfd6ff;border:1px solid #2a2f47}
+.btn.ghost{background:#0e1220;color:#cfd6ff;border:1px solid #2a2f47;box-shadow:none}
+.btn:disabled{opacity:.5;cursor:not-allowed}
 
-.kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:14px}
-@media (min-width:640px){ .kpis{grid-template-columns:repeat(4,1fr)} }
-.kpi{background:#0e1220;border:1px solid #222842;border-radius:14px;padding:12px;text-align:center}
-.kpi .label{font-size:12px;color:var(--muted);margin-bottom:6px}
-.kpi .val{font-size:26px;font-weight:700}
-.kpi .unit{font-size:12px;color:var(--muted);margin-left:4px}
-
-.gauge-wrap{position:relative}
+/* status */
 .status-pill{
-  position:absolute; right:10px; top:10px;
   background:#0e1220;border:1px solid #222842;border-radius:999px;padding:6px 10px;color:var(--muted);font-size:12px;
 }
 
-.gauge{position:relative;aspect-ratio:1/1;max-width:520px;margin:10px auto 0}
+/* gauge */
+.gauge{position:relative;aspect-ratio:1/1;max-width:560px;margin:6px auto 0}
 .gauge svg{display:block;width:100%;height:auto}
 .speed-value{position:absolute;inset:auto 0 26% 0;text-align:center}
-.speed-value .num{font-size:48px;font-weight:800}
+.speed-value .num{font-size:54px;font-weight:900;letter-spacing:.5px}
 .speed-value .unit{font-size:14px;color:var(--muted)}
 .scale-label{position:absolute;left:50%;transform:translateX(-50%);bottom:8px;font-size:12px;color:var(--muted)}
 
-.badges{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:10px 0 2px}
+/* badges */
+.badges{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:12px 0 4px}
 .pill{display:inline-flex;align-items:center;gap:6px;background:#0e1220;border:1px solid #222842;border-radius:999px;padding:6px 10px;color:var(--muted);font-size:12px}
 .pill svg{opacity:.9}
 
-footer{opacity:.6;margin-top:18px;font-size:12px}
+/* KPIs */
+.kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:14px}
+@media (min-width:640px){ .kpis{grid-template-columns:repeat(4,1fr)} }
+.kpi{background:#0e1220;border:1px solid #222842;border-radius:14px;padding:14px 12px;text-align:center}
+.kpi .label{font-size:12px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px}
+.kpi .val{font-size:28px;font-weight:800}
+.kpi .unit{font-size:12px;color:var(--muted);margin-left:4px}
+
+footer{opacity:.6;margin-top:18px;font-size:12px;text-align:center}

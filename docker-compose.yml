@@ -2,9 +2,9 @@ version: "3.9"
 services:
   directory:
     build:
-      context: ./directory-service
-    image: jinom/directory-service:local
-    container_name: directory
+      context: ./speedtest-directory
+    image: jinom/speedtest-directory:local
+    container_name: speedtest-directory
     ports:
       - "9088:8088"
 
