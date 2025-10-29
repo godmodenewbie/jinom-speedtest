@@ -14,6 +14,187 @@ const state = {
   gaugeMax: 1000
 };
 
+state.lastResult = null;
+
+// util: angka ke 2 desimal
+function fmt2(n){ return Number.isFinite(n) ? n.toFixed(2) : "-"; }
+
+// buat payload hasil yang akan dishare
+function buildResultPayload(){
+  const nowIso = new Date().toISOString();
+  const sel = state.selected || {};
+  // Baca angka yang tampil di UI (supaya konsisten)
+  const latencyMs = parseFloat(document.getElementById("latency").textContent) || 0;
+  const jitterMs  = parseFloat(document.getElementById("jitter").textContent) || 0;
+  const downMbps  = parseFloat(document.getElementById("downMbps").textContent) || 0;
+  const upMbps    = parseFloat(document.getElementById("upMbps").textContent) || 0;
+  const ipText    = (document.getElementById("clientIpText")?.textContent || "IP: -").replace(/^IP:\s*/i,"");
+  const ispText   = (document.getElementById("clientIspText")?.textContent || "ISP: -").replace(/^—?\s*ISP:\s*/i,"");
+
+  return {
+    ts: nowIso,
+    latencyMs, jitterMs, downMbps, upMbps,
+    client: { ip: ipText, isp: ispText },
+    server: { id: sel.id || "-", city: sel.city || "-", region: sel.region || "-", url: (sel.URL || sel.url || "-") }
+  };
+}
+
+// encode → permalink dengan hash (tidak butuh backend)
+function makeShareLink(result){
+  const json = JSON.stringify(result);
+  const b64  = btoa(unescape(encodeURIComponent(json)));
+  const base = location.origin + location.pathname;
+  return `${base}#r=${b64}`;
+}
+
+// coba parse shared result saat halaman dibuka via link
+function tryLoadSharedFromHash(){
+  const m = location.hash.match(/[#&]r=([^&]+)/);
+  if(!m) return null;
+  try{
+    const json = decodeURIComponent(escape(atob(m[1])));
+    return JSON.parse(json);
+  }catch{ return null; }
+}
+
+async function renderResultCardPNG(res){
+  const W = 1200, H = 630;           // ukuran sosial-card
+  const pad = 40;
+  const canvas = document.createElement("canvas");
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext("2d");
+
+  // background
+  const grad = ctx.createLinearGradient(0,0,W,H);
+  grad.addColorStop(0,"#151A33");
+  grad.addColorStop(1,"#0F1320");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0,0,W,H);
+
+  // header
+  ctx.fillStyle = "#cfd6ff";
+  ctx.font = "bold 36px system-ui,Segoe UI,Inter,Roboto";
+  ctx.fillText("Jinom Speedtest – Result", pad, pad+36);
+
+  // garis
+  ctx.strokeStyle = "#222842";
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(pad, pad+56); ctx.lineTo(W-pad, pad+56); ctx.stroke();
+
+  // nilai besar
+  const big = [
+    ["Download", `${fmt2(res.downMbps)} Mbps`],
+    ["Upload",   `${fmt2(res.upMbps)} Mbps`],
+    ["Ping",     `${fmt2(res.latencyMs)} ms`],
+    ["Jitter",   `${fmt2(res.jitterMs)} ms`],
+  ];
+  const colW = (W - pad*2) / 4;
+  big.forEach((row, i)=>{
+    const x = pad + i*colW;
+    ctx.fillStyle = "#9aa3c7";
+    ctx.font = "bold 18px system-ui,Segoe UI,Inter,Roboto";
+    ctx.fillText(row[0], x, pad+120);
+    ctx.fillStyle = "#e8ebff";
+    ctx.font = "900 44px system-ui,Segoe UI,Inter,Roboto";
+    ctx.fillText(row[1], x, pad+120+52);
+  });
+
+  // footer info
+  ctx.fillStyle = "#9aa3c7";
+  ctx.font = "16px system-ui,Segoe UI,Inter,Roboto";
+  const s = res.server || {};
+  const c = res.client || {};
+  const line1 = `Server: ${s.city||"-"} (${s.region||"-"}) • ${s.url||"-"}`;
+  const line2 = `Client: ${c.isp||"-"} • ${c.ip||"-"}`;
+  const line3 = `Time: ${new Date(res.ts).toLocaleString()}`;
+  ctx.fillText(line1, pad, H - pad - 60);
+  ctx.fillText(line2, pad, H - pad - 34);
+  ctx.fillText(line3, pad, H - pad - 8);
+
+  // logo titik
+  ctx.beginPath();
+  ctx.arc(W-pad-10, pad+28, 6, 0, Math.PI*2);
+  ctx.fillStyle = "#5b8cff";
+  ctx.fill();
+
+  return canvas;
+}
+
+async function downloadResultImage(){
+  if(!state.lastResult) return;
+  const canvas = await renderResultCardPNG(state.lastResult);
+  const url = canvas.toDataURL("image/png");
+  const a = document.createElement("a");
+  a.href = url;
+  const ts = new Date(state.lastResult.ts).toISOString().replace(/[:.]/g,"-");
+  a.download = `speedtest-${ts}.png`;
+  a.click();
+}
+
+async function doShare(){
+  if(!state.lastResult) return;
+  const link = makeShareLink(state.lastResult);
+  const text = [
+    `Jinom Speedtest Result`,
+    `Download: ${fmt2(state.lastResult.downMbps)} Mbps`,
+    `Upload  : ${fmt2(state.lastResult.upMbps)} Mbps`,
+    `Ping    : ${fmt2(state.lastResult.latencyMs)} ms  •  Jitter: ${fmt2(state.lastResult.jitterMs)} ms`,
+    `Server  : ${state.lastResult.server.city} (${state.lastResult.server.region})`,
+    `Link    : ${link}`
+  ].join("\n");
+
+  try{
+    if (navigator.canShare && navigator.canShare({ url: link })) {
+      await navigator.share({ title: "Speedtest Result", text, url: link });
+      return;
+    }
+  }catch(e){ /* user cancel or not supported */ }
+
+  // fallback: tampilkan link & enable copy
+  const input = document.getElementById("shareLink");
+  const btnCopy = document.getElementById("btnCopyShare");
+  if (input){
+    input.value = link;
+    input.disabled = false;
+  }
+  if (btnCopy){
+    btnCopy.disabled = false;
+  }
+}
+
+async function copyShareLink(){
+  const input = document.getElementById("shareLink");
+  if (!input || !input.value) return;
+  try{
+    await navigator.clipboard.writeText(input.value);
+    input.classList.add("copied");
+    setTimeout(()=>input.classList.remove("copied"), 800);
+  }catch{
+    input.select(); document.execCommand("copy");
+  }
+}
+
+// Fungsi untuk menampilkan hasil (baik dari tes baru atau dari link)
+function displayResult(res) {
+  if (!res) return;
+
+  // Isi KPI
+  if ($("latency")) $("latency").textContent = fmt2(res.latencyMs);
+  if ($("jitter")) $("jitter").textContent = fmt2(res.jitterMs);
+  if ($("downMbps")) $("downMbps").textContent = fmt2(res.downMbps);
+  if ($("upMbps")) $("upMbps").textContent = fmt2(res.upMbps);
+
+  // Isi info client & server
+  if ($("clientIpText")) $("clientIpText").textContent = `IP: ${res.client?.ip || "-"}`;
+  if ($("clientIspText")) $("clientIspText").textContent = `— ISP: ${res.client?.isp || "-"}`;
+  if ($("serverText")) {
+    const s = res.server || {};
+    $("serverText").textContent = `Server: ${s.city || "Unknown"}${s.region ? " ("+s.region+")" : ""} • ${s.url || "-"}`;
+  }
+
+  updateGauge(0); // Reset gauge
+}
+
 // ===== UTIL =====
 function log(...a){ console.log("[speedtest]", ...a); }
 function mbps(bytes, seconds){ return (bytes * 8) / (seconds * 1e6); }
@@ -246,8 +427,30 @@ async function startTest(){
   });
 
   setRunning(false); updateGauge(0); log("All tests done");
+
+  // simpan hasil terakhir → enable tombol share
+  const result = buildResultPayload();
+  state.lastResult = result;
+  displayResult(result); // Tampilkan hasil yang baru saja didapat
+  // siapkan link di input (opsional, biar langsung muncul)
+  document.getElementById("shareLink").value = makeShareLink(state.lastResult);
+  document.getElementById("btnCopyShare").disabled = false;
 }
 function stopTest(){ state.stopFlag=true; setRunning(false); log("Stopped"); }
+
+document.getElementById("btnShare").onclick = doShare;
+document.getElementById("btnDownloadImg").onclick = downloadResultImage;
+document.getElementById("btnCopyShare").onclick = copyShareLink;
+
+// Jika halaman dibuka via link share, bisa kamu pakai untuk pre-fill / banner
+const shared = tryLoadSharedFromHash();
+if (shared) {
+  console.log("Shared result loaded:", shared);
+  state.lastResult = shared; // Simpan untuk fitur download/share
+  // Tampilkan hasil dari link di UI saat halaman siap
+  window.addEventListener("DOMContentLoaded", () => displayResult(shared));
+}
+
 
 // ===== INIT =====
 window.addEventListener("DOMContentLoaded", ()=>{
@@ -260,7 +463,14 @@ window.addEventListener("DOMContentLoaded", ()=>{
   if($("btnStop"))  $("btnStop").onclick  = stopTest;
 
   setupGauge();            // gambar gauge jika ada
-  ensureBadges();          // buat badge server & IP/ISP kalau belum ada
-  getClientNetworkInfo();  // isi IP & ISP
-  autoSelectServer();      // pilih server otomatis + isi badge server
+  if (!shared) {
+    // Hanya jalankan auto-discovery jika tidak memuat dari link
+    ensureBadges();          // buat badge server & IP/ISP kalau belum ada
+    getClientNetworkInfo();  // isi IP & ISP
+    autoSelectServer();      // pilih server otomatis + isi badge server
+  } else {
+    // Jika memuat dari link, aktifkan tombol share/download
+    document.getElementById("btnShare").disabled = false;
+    document.getElementById("btnDownloadImg").disabled = false;
+  }
 });

@@ -62,3 +62,14 @@ body{
 .kpi .unit{font-size:12px;color:var(--muted);margin-left:4px}
 
 footer{opacity:.6;margin-top:18px;font-size:12px;text-align:center}
+
+/* Share area */
+.share-wrap{
+  display:flex; gap:8px; align-items:center; justify-content:center;
+  margin-top:10px; flex-wrap:wrap;
+}
+.share-input{
+  width:min(720px, 90vw);
+  padding:10px 12px; border-radius:10px; border:1px solid #2a2f47;
+  background:#0e1220; color:#e8ebff; font-size:12px;
+}
