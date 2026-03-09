@@ -281,7 +281,7 @@ function updateServerDisplay(s) {
 // ===== RANDOM BYTES (64KB → 4MiB) =====
 const BASE64K = new Uint8Array(65536); crypto.getRandomValues(BASE64K);
 function makeChunk(bytes) { const out = new Uint8Array(bytes); for (let off = 0; off < out.length; off += BASE64K.length) out.set(BASE64K, off); return out; }
-const UP_CHUNK = makeChunk(512 << 10); // 512 KiB
+const UP_CHUNK = makeChunk(4 << 20); // Max 4 MiB buffer
 
 // ===== DIRECTORY & SERVER PICK =====
 function normalizeNodeUrl(entry) {
@@ -373,26 +373,43 @@ async function runUploadStreaming(baseUrl, seconds = DEFAULT_SECONDS, streams = 
 }
 async function runUploadFallback(baseUrl, seconds = DEFAULT_SECONDS, streams = Math.min(DEFAULT_STREAMS, 8), onProgress = () => { }) {
   const tEnd = Date.now() + seconds * 1000; let total = 0;
+  
   const worker = async () => { 
     let sent = 0; 
+    let currentChunkSize = 32 * 1024; // Start very small: 32 KB untuk GSM
+
     while (Date.now() < tEnd && !state.stopFlag) { 
-      await new Promise(resolve => {
-        const xhr = new XMLHttpRequest();
-        xhr.open("POST", baseUrl + `/api/v1/upload?time=${seconds}`, true);
-        let lastLoaded = 0;
-        xhr.upload.onprogress = e => {
-          if (state.stopFlag) { xhr.abort(); return; }
-          const diff = e.loaded - lastLoaded;
-          lastLoaded = e.loaded;
-          total += diff; sent += diff;
-          onProgress(total);
-        };
-        xhr.onload = xhr.onerror = xhr.onabort = () => resolve();
-        xhr.send(UP_CHUNK);
-      });
+      const startT = performance.now();
+      const chunk = UP_CHUNK.subarray(0, currentChunkSize);
+      
+      try {
+        await fetch(baseUrl + `/api/v1/upload?time=${seconds}`, { 
+          method: "POST", 
+          body: chunk 
+        });
+        
+        if (!state.stopFlag) {
+          total += chunk.byteLength;
+          sent += chunk.byteLength;
+          onProgress(total); // Update meter secara instan per chunk
+        }
+      } catch (e) {
+        // Abaikan error netral
+      }
+      
+      const dur = performance.now() - startT;
+      
+      // Auto-scaling algorithm:
+      // Jika chunk terkirim sangat cepat (< 120ms), berarti koneksi kencang (WiFi).
+      // Besarkan kapasitas chunk agar overhead HTTP berkurang dan ngebut.
+      // Tapi jika lambat (> 120ms), pertahankan ukuran kecil agar UI GSM tidak macet.
+      if (dur < 120 && currentChunkSize < UP_CHUNK.byteLength) {
+        currentChunkSize = Math.min(currentChunkSize * 3, UP_CHUNK.byteLength); 
+      }
     } 
     return sent; 
   };
+  
   const tick = setInterval(() => onProgress(total), 120); 
   const results = await Promise.all(Array.from({ length: streams }, worker)); 
   clearInterval(tick); 
