@@ -281,7 +281,7 @@ function updateServerDisplay(s) {
 // ===== RANDOM BYTES (64KB → 4MiB) =====
 const BASE64K = new Uint8Array(65536); crypto.getRandomValues(BASE64K);
 function makeChunk(bytes) { const out = new Uint8Array(bytes); for (let off = 0; off < out.length; off += BASE64K.length) out.set(BASE64K, off); return out; }
-const UP_CHUNK = makeChunk(4 << 20); // 4 MiB
+const UP_CHUNK = makeChunk(128 << 10); // 128 KiB (Dikecilkan agar GSM tidak stuck)
 
 // ===== DIRECTORY & SERVER PICK =====
 function normalizeNodeUrl(entry) {
@@ -373,7 +373,7 @@ async function runUploadStreaming(baseUrl, seconds = DEFAULT_SECONDS, streams = 
 }
 async function runUploadFallback(baseUrl, seconds = DEFAULT_SECONDS, streams = Math.min(DEFAULT_STREAMS, 8), onProgress = () => { }) {
   const tEnd = Date.now() + seconds * 1000; let total = 0;
-  const worker = async () => { let sent = 0; while (Date.now() < tEnd && !state.stopFlag) { await fetch(baseUrl + "/api/v1/upload", { method: "POST", body: UP_CHUNK }).catch(() => { }); sent += UP_CHUNK.length; total += UP_CHUNK.length; onProgress(total); } return sent; };
+  const worker = async () => { let sent = 0; while (Date.now() < tEnd && !state.stopFlag) { await fetch(baseUrl + `/api/v1/upload?time=${seconds}`, { method: "POST", body: UP_CHUNK }).catch(() => { }); sent += UP_CHUNK.length; total += UP_CHUNK.length; onProgress(total); } return sent; };
   const tick = setInterval(() => onProgress(total), 120); const results = await Promise.all(Array.from({ length: streams }, worker)); clearInterval(tick); onProgress(total); return results.reduce((a, b) => a + b, 0);
 }
 async function runUpload(baseUrl, seconds = DEFAULT_SECONDS, streams = DEFAULT_STREAMS, onProgress = () => { }) {
