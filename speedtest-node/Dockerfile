@@ -2,10 +2,10 @@
 FROM golang:1.22-alpine AS build
 WORKDIR /src
 RUN apk add --no-cache git
-COPY go.mod go.sum* ./
+COPY go.mod ./
 COPY main.go ./
-RUN go get golang.org/x/crypto/acme/autocert
-RUN go mod tidy
+ENV GOPROXY=https://proxy.golang.org,direct
+RUN go get -u golang.org/x/crypto/acme/autocert
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /app/speedtest .
 
 # Runtime
