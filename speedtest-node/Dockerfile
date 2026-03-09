@@ -1,11 +1,11 @@
 # Build
 FROM golang:1.22-alpine AS build
 WORKDIR /src
-COPY go.mod ./
+RUN apk add --no-cache git
+COPY go.mod go.sum* ./
 COPY main.go ./
-RUN go get golang.org/x/crypto/acme/autocert
 RUN go mod tidy
-RUN go build -o /app/speedtest .
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /app/speedtest .
 
 # Runtime
 FROM alpine:3.20
