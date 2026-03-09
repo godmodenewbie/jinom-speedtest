@@ -4,6 +4,7 @@ WORKDIR /src
 RUN apk add --no-cache git
 COPY go.mod go.sum* ./
 COPY main.go ./
+RUN go get golang.org/x/crypto/acme/autocert
 RUN go mod tidy
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /app/speedtest .
 
