@@ -17,20 +17,24 @@ services:
       - NODE_ID=node-dps
       - REGION=id-dps
       - ADDR=:8080
+      - NODE_DOMAIN=node-speedtest.jinom.net
     ports:
-      - "9080:8080"
+      - "9080:80"
+      - "9043:443"
 
-  jkt:
-    build:
-      context: ./speedtest-node
-    image: jinom/speedtest-node:local
-    container_name: speed-jkt
-    environment:
-      - NODE_ID=node-jkt
-      - REGION=id-jkt
-      - ADDR=:8081
-    ports:
-      - "9081:8081"
+  #jkt:
+  #  build:
+  #    context: ./speedtest-node
+  #  image: jinom/speedtest-node:local
+  #  container_name: speed-jkt
+  #  environment:
+  #    - NODE_ID=node-jkt
+  #    - REGION=id-jkt
+  #    - ADDR=:8081
+  #    - NODE_DOMAIN=jkt.example.com
+  #  ports:
+  #    - "8081:80"
+  #    - "8443:443"
 
   client:
     build:

@@ -2,6 +2,7 @@ package main
 
 import (
   "crypto/rand"
+  "crypto/tls"
   "encoding/json"
   "io"
   "log"
@@ -9,6 +10,8 @@ import (
   "os"
   "strconv"
   "time"
+  
+  "golang.org/x/crypto/acme/autocert"
 )
 
 var chunk = make([]byte, 1<<20) // 1 MiB random
@@ -67,6 +70,7 @@ func main() {
   region := getenv("REGION", "id-dps")
   maxDur := getenvInt("MAX_DURATION_SEC", 30)
   addr   := getenv("ADDR", ":8080")
+  domain := getenv("NODE_DOMAIN", "")
 
   mux := http.NewServeMux()
 
@@ -177,6 +181,34 @@ mux.HandleFunc("/api/v1/upload", withCORS(func(w http.ResponseWriter, r *http.Re
     IdleTimeout:  120 * time.Second,
   }
 
-  log.Printf("Speedtest node %s (%s) listening on %s", nodeID, region, addr)
-  log.Fatal(srv.ListenAndServe())
+  if domain != "" {
+    // If DOMAIN is provided, use Let's Encrypt with autocert
+    certManager := autocert.Manager{
+      Prompt:     autocert.AcceptTOS,
+      HostPolicy: autocert.HostWhitelist(domain),
+      Cache:      autocert.DirCache("certs"), // Store certs in "certs" directory
+    }
+    
+    srv.Addr = ":443" // Override addr to 443 for HTTPS
+    srv.TLSConfig = &tls.Config{
+      GetCertificate: certManager.GetCertificate,
+    }
+
+    log.Printf("Speedtest node %s (%s) listening on HTTPS (Let's Encrypt for %s)", nodeID, region, domain)
+    
+    // Start Let's Encrypt HTTP-01 challenge server on port 80 in background
+    go func() {
+      log.Printf("Starting Let's Encrypt HTTP-01 challenge server on port 80")
+      err := http.ListenAndServe(":80", certManager.HTTPHandler(nil))
+      if err != nil {
+        log.Fatalf("Failed to start HTTP-01 challenge server: %v", err)
+      }
+    }()
+
+    log.Fatal(srv.ListenAndServeTLS("", "")) // Certs are provided by GetCertificate
+  } else {
+    // Fallback to normal HTTP
+    log.Printf("Speedtest node %s (%s) listening on %s (HTTP)", nodeID, region, addr)
+    log.Fatal(srv.ListenAndServe())
+  }
 }
