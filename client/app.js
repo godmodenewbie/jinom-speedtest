@@ -281,7 +281,7 @@ function updateServerDisplay(s) {
 // ===== RANDOM BYTES (64KB → 4MiB) =====
 const BASE64K = new Uint8Array(65536); crypto.getRandomValues(BASE64K);
 function makeChunk(bytes) { const out = new Uint8Array(bytes); for (let off = 0; off < out.length; off += BASE64K.length) out.set(BASE64K, off); return out; }
-const UP_CHUNK = makeChunk(128 << 10); // 128 KiB (Dikecilkan agar GSM tidak stuck)
+const UP_CHUNK = makeChunk(512 << 10); // 512 KiB
 
 // ===== DIRECTORY & SERVER PICK =====
 function normalizeNodeUrl(entry) {
@@ -373,8 +373,31 @@ async function runUploadStreaming(baseUrl, seconds = DEFAULT_SECONDS, streams = 
 }
 async function runUploadFallback(baseUrl, seconds = DEFAULT_SECONDS, streams = Math.min(DEFAULT_STREAMS, 8), onProgress = () => { }) {
   const tEnd = Date.now() + seconds * 1000; let total = 0;
-  const worker = async () => { let sent = 0; while (Date.now() < tEnd && !state.stopFlag) { await fetch(baseUrl + `/api/v1/upload?time=${seconds}`, { method: "POST", body: UP_CHUNK }).catch(() => { }); sent += UP_CHUNK.length; total += UP_CHUNK.length; onProgress(total); } return sent; };
-  const tick = setInterval(() => onProgress(total), 120); const results = await Promise.all(Array.from({ length: streams }, worker)); clearInterval(tick); onProgress(total); return results.reduce((a, b) => a + b, 0);
+  const worker = async () => { 
+    let sent = 0; 
+    while (Date.now() < tEnd && !state.stopFlag) { 
+      await new Promise(resolve => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", baseUrl + `/api/v1/upload?time=${seconds}`, true);
+        let lastLoaded = 0;
+        xhr.upload.onprogress = e => {
+          if (state.stopFlag) { xhr.abort(); return; }
+          const diff = e.loaded - lastLoaded;
+          lastLoaded = e.loaded;
+          total += diff; sent += diff;
+          onProgress(total);
+        };
+        xhr.onload = xhr.onerror = xhr.onabort = () => resolve();
+        xhr.send(UP_CHUNK);
+      });
+    } 
+    return sent; 
+  };
+  const tick = setInterval(() => onProgress(total), 120); 
+  const results = await Promise.all(Array.from({ length: streams }, worker)); 
+  clearInterval(tick); 
+  onProgress(total); 
+  return results.reduce((a, b) => a + b, 0);
 }
 async function runUpload(baseUrl, seconds = DEFAULT_SECONDS, streams = DEFAULT_STREAMS, onProgress = () => { }) {
   if (supportsStreamingUpload()) { const sum = await runUploadStreaming(baseUrl, seconds, streams, onProgress); if (sum > 0) return sum; log("Streaming returned 0 → fallback"); }
