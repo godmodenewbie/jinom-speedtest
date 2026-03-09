@@ -364,16 +364,16 @@ async function runDownload(baseUrl, seconds = DEFAULT_SECONDS, streams = DEFAULT
 }
 
 // ===== UPLOAD =====
-function supportsStreamingUpload() { try { const rs = new ReadableStream({ start(c) { c.close() } }); new Request("about:blank", { method: "POST", body: rs, duplex: "half" }); return true; } catch { return false } }
+function supportsStreamingUpload() { return false; /* Force disable half-duplex on mobile networks which often drop streaming bodies */ }
 function makeUploadStream(durationMs, onEnqueue) { const end = Date.now() + durationMs; return new ReadableStream({ pull(c) { if (Date.now() >= end || state.stopFlag) { c.close(); return } c.enqueue(UP_CHUNK); if (onEnqueue) onEnqueue(UP_CHUNK.length); } }); }
 async function runUploadStreaming(baseUrl, seconds = DEFAULT_SECONDS, streams = DEFAULT_STREAMS, onProgress = () => { }) {
   state.upBytes = 0; const durationMs = seconds * 1000;
-  const worker = async () => { try { let local = 0; const stream = makeUploadStream(durationMs, n => { local += n; state.upBytes += n; onProgress(state.upBytes); }); const r = await fetch(baseUrl + `/api/v1/upload?time=${seconds}`, { method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: stream }); const j = await r.json().catch(() => ({ receivedBytes: 0 })); if (typeof j.receivedBytes === "number") { const diff = j.receivedBytes - local; if (diff > 0) { state.upBytes += diff; onProgress(state.upBytes); } return j.receivedBytes; } return local; } catch (e) { log("stream worker failed:", e); return 0; } };
+  const worker = async () => { try { let local = 0; const stream = makeUploadStream(durationMs, n => { local += n; state.upBytes += n; onProgress(state.upBytes); }); const r = await fetch(baseUrl + `/api/v1/upload?time=${seconds}`, { method: "POST", body: stream }); const j = await r.json().catch(() => ({ receivedBytes: 0 })); if (typeof j.receivedBytes === "number") { const diff = j.receivedBytes - local; if (diff > 0) { state.upBytes += diff; onProgress(state.upBytes); } return j.receivedBytes; } return local; } catch (e) { log("stream worker failed:", e); return 0; } };
   const results = await Promise.all(Array.from({ length: streams }, worker)); return results.reduce((a, b) => a + b, 0);
 }
 async function runUploadFallback(baseUrl, seconds = DEFAULT_SECONDS, streams = Math.min(DEFAULT_STREAMS, 8), onProgress = () => { }) {
   const tEnd = Date.now() + seconds * 1000; let total = 0;
-  const worker = async () => { let sent = 0; while (Date.now() < tEnd && !state.stopFlag) { await fetch(baseUrl + "/api/v1/upload", { method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: UP_CHUNK }).catch(() => { }); sent += UP_CHUNK.length; total += UP_CHUNK.length; onProgress(total); } return sent; };
+  const worker = async () => { let sent = 0; while (Date.now() < tEnd && !state.stopFlag) { await fetch(baseUrl + "/api/v1/upload", { method: "POST", body: UP_CHUNK }).catch(() => { }); sent += UP_CHUNK.length; total += UP_CHUNK.length; onProgress(total); } return sent; };
   const tick = setInterval(() => onProgress(total), 120); const results = await Promise.all(Array.from({ length: streams }, worker)); clearInterval(tick); onProgress(total); return results.reduce((a, b) => a + b, 0);
 }
 async function runUpload(baseUrl, seconds = DEFAULT_SECONDS, streams = DEFAULT_STREAMS, onProgress = () => { }) {

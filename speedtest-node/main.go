@@ -43,8 +43,9 @@ func withCORS(h http.HandlerFunc) http.HandlerFunc {
       w.Header().Set("Access-Control-Allow-Origin", origin)
       w.Header().Set("Vary", "Origin")
     }
-    w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-    w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+    w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE")
+    w.Header().Set("Access-Control-Allow-Headers", "*")
+    w.Header().Set("Access-Control-Max-Age", "86400")
 
     // >>> penting untuk Private Network Access (akses 192.168.x.x dari browser)
     if r.Header.Get("Access-Control-Request-Private-Network") == "true" {
