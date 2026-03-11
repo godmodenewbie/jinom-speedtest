@@ -85,7 +85,11 @@ func main() {
   }))
 
   mux.HandleFunc("/api/v1/latency", withCORS(func(w http.ResponseWriter, r *http.Request) {
-    w.WriteHeader(204)
+    w.Header().Set("Content-Type", "application/json")
+    _ = json.NewEncoder(w).Encode(map[string]any{
+      "status": "ok",
+      "timestamp": time.Now().Format(time.RFC3339),
+    })
   }))
 
   mux.HandleFunc("/api/v1/download", withCORS(func(w http.ResponseWriter, r *http.Request) {
@@ -170,6 +174,52 @@ mux.HandleFunc("/api/v1/upload", withCORS(func(w http.ResponseWriter, r *http.Re
     "durationMs":    time.Since(start).Milliseconds(),
   })
 }))
+
+  // Endpoint kombinasi untuk Postman: mengukur upload dari Request Body dan mengembalikan JSON lengkap
+  mux.HandleFunc("/api/v1/test_all", withCORS(func(w http.ResponseWriter, r *http.Request) {
+    w.Header().Set("Cache-Control", "no-store")
+
+    start := time.Now()
+    
+    // 1. Ukur Upload dari Body
+    var received int64
+    buf := make([]byte, 1<<20) // 1 MiB
+    for {
+      n, err := r.Body.Read(buf)
+      if n > 0 { received += int64(n) }
+      if err == io.EOF { break }
+      if err != nil { break }
+    }
+    _ = r.Body.Close()
+    
+    durMs := time.Since(start).Milliseconds()
+    var upMbps float64
+    if durMs > 0 {
+      upMbps = float64(received*8) / float64(durMs) / 1000.0 // Mbps
+    }
+
+    // 2. Simulasi Latency dan Download (karena tidak memungkinkan mengirim binary dan JSON sekaligus dalam 1 request HTTP)
+    latMs := float64(10 + (start.UnixNano() % 15)) // simulasi latency 10-24ms
+    dlMbps := float64(300 + (start.UnixNano() % 200)) // simulasi download 300-499 Mbps
+    
+    if received == 0 {
+      upMbps = 0
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+    _ = json.NewEncoder(w).Encode(map[string]any{
+      "status": "ok",
+      "timestamp": time.Now().Format(time.RFC3339),
+      "metrics": map[string]any{
+        "latencyMs": latMs,
+        "downloadMbps": dlMbps,
+        "uploadMbps": upMbps,
+        "uploadBytesReceived": received,
+        "uploadDurationMs": durMs,
+      },
+      "note": "Latency & Download are simulated in this endpoint. Upload is measured accurately based on the request body provided.",
+    })
+  }))
 
 
   srv := &http.Server{

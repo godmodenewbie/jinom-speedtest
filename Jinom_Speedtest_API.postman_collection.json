@@ -1,0 +1,195 @@
+{
+	"info": {
+		"name": "Jinom Speedtest API",
+		"description": "Postman collection for hitting Jinom Speedtest directory and node APIs.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Directory API",
+			"item": [
+				{
+					"name": "Get Server List",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{directory_url}}/api/v1/servers",
+							"host": [
+								"{{directory_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"servers"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Node API",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{node_url}}/healthz",
+							"host": [
+								"{{node_url}}"
+							],
+							"path": [
+								"healthz"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Node Config",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{node_url}}/api/v1/config",
+							"host": [
+								"{{node_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"config"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Measure Latency",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{node_url}}/api/v1/latency?t={{$randomInt}}",
+							"host": [
+								"{{node_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"latency"
+							],
+							"query": [
+								{
+									"key": "t",
+									"value": "{{$randomInt}}",
+									"description": "Cache buster"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Download Test",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{node_url}}/api/v1/download?time=10",
+							"host": [
+								"{{node_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"download"
+							],
+							"query": [
+								{
+									"key": "time",
+									"value": "10",
+									"description": "Duration in seconds"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Upload Test (Select Binary File)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "file",
+							"file": {
+								"src": ""
+							}
+						},
+						"url": {
+							"raw": "{{node_url}}/api/v1/upload?time=10",
+							"host": [
+								"{{node_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"upload"
+							],
+							"query": [
+								{
+									"key": "time",
+									"value": "10",
+									"description": "Duration in seconds"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Combined Test (Return JSON)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "file",
+							"file": {
+								"src": ""
+							}
+						},
+						"url": {
+							"raw": "{{node_url}}/api/v1/test_all",
+							"host": [
+								"{{node_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"test_all"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "directory_url",
+			"value": "https://directory-speedtest.jinom.net",
+			"type": "string"
+		},
+		{
+			"key": "node_url",
+			"value": "https://sg-1.speedtest.jinom.net",
+			"type": "string"
+		}
+	]
+}
